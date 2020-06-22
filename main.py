@@ -9,15 +9,17 @@ from matplotlib import dates
 
 from utils import load_statement, load_price, \
                   print_stat_account, plot_time_series, \
-                  get_beta, get_ones
+                  get_beta, get_ones, get_mean
 
 
 def cal_financial_data(statement, data_type):
-    predefine_type = ['working_capital', 'tax_rate', 'ebit', 'capital_employed', \
-                      'capital_expenditure', 'depreciation', 'debt_ratio', 'gross_margin', \
-                      'gross_profit', 'revenue', 'operating_margin', 'long_term_debt', \
-                      'pretax_income', 'interest', 'eps', \
-                      'operating_cashflow', 'investing_cashflow', 'financing_cashflow'
+    predefine_type = ['working_capital', 'tax_rate', 'ebit', 'capital_employed',            \
+                      'capital_expenditure', 'depreciation', 'debt_ratio', 'gross_margin',  \
+                      'gross_profit', 'revenue', 'operating_margin', 'long_term_debt',      \
+                      'pretax_income', 'interest', 'eps',                                   \
+                      'operating_cashflow', 'investing_cashflow', 'financing_cashflow',     \
+                      'operating_income_before_depreciation', 'ppe', 'long_term_assets',    \
+                      'current_assets'
                     ]
 
     if not data_type in predefine_type:
@@ -28,6 +30,7 @@ def cal_financial_data(statement, data_type):
     # I/S
     if data_type == 'revenue': return statement.loc[:, 'Sales (Net)']
     if data_type == 'gross_profit': return statement.loc[:, 'Gross Profit']
+    if data_type == 'operating_income_before_depreciation': return statement.loc[:, 'Operating Income Before Depreciation']
     if data_type == 'depreciation': return statement.loc[:, 'Depreciation, Depletion, & Amortiz']
     if data_type == 'interest': return statement.loc[:, 'Interest Expense']
     if data_type == 'pretax_income': return statement.loc[:, 'Pretax Income']
@@ -36,7 +39,10 @@ def cal_financial_data(statement, data_type):
     if data_type == 'ebit': return statement.loc[:, 'Net Income (Loss)'] + statement.loc[:, 'Income Taxes - Total'] + statement.loc[:, 'Interest Expense']
 
     # B/S
+    if data_type == 'current_assets': return statement.loc[:, 'Current Assets - Total']
     if data_type == 'capital_employed': return statement.loc[:, 'TOTAL ASSETS'] # - statement.loc[:, 'Total Current Liabilities']
+    if data_type == 'ppe': return statement.loc[:, 'Plant, Property & Equip (Net)']
+    if data_type == 'long_term_assets': return cal_financial_data(statement, 'capital_employed') - cal_financial_data(statement, 'current_assets')
     if data_type == 'long_term_debt': return statement.loc[:, 'Long Term Debt']
 
     # ratio
@@ -52,7 +58,7 @@ def cal_financial_data(statement, data_type):
 
     # other
     if data_type == 'tax_rate': return statement.loc[:, 'Income Taxes - Total'] / cal_financial_data(statement, 'pretax_income')
-    if data_type == 'working_capital': return statement.loc[:, 'Current Assets - Total'] - statement.loc[:, 'Total Current Liabilities']
+    if data_type == 'working_capital': return cal_financial_data(statement, 'current_assets') - statement.loc[:, 'Total Current Liabilities']
 
 
 def estimate_fcff():
@@ -82,18 +88,17 @@ price_oil_path = os.path.join('data', 'oil_price.pickle')
 statement_dic = load_statement(statement_dir)
 debt_equity_market = pd.read_pickle(debt_equity_market_path).astype(np.float64)
 risk_free_rate = pd.read_pickle(risk_free_rate_path).astype(np.float64)
-price_market = pd.read_pickle(price_market_path).astype(np.float64)[-1800:]
-price_rdsb = pd.read_pickle(price_rdsb_path).astype(np.float64)[-1800:]
+price_market = pd.read_pickle(price_market_path).astype(np.float64)
+price_rdsb = pd.read_pickle(price_rdsb_path).astype(np.float64).loc["2007-06-18": ,]
 price_oil = pd.read_pickle(price_oil_path).astype(np.float64)
 
 # not related to individual company
 return_market = price_market.pct_change()
-plot_time_series(price_oil, 'Brent oil price', img_save=os.path.join('image', 'oil_price'))
-plot_time_series(return_market, 'Market Return', img_save=os.path.join('image', 'market_return'))
-plot_time_series(price_market, 'Dow Jone Index price', marker=None, img_save=os.path.join(image_dir, 'dow_jone_index'))
-plot_time_series(price_rdsb, 'RDS-B', marker=None, img_save=os.path.join(image_dir, 'RDS-B'))
+# plot_time_series(price_oil, 'Brent oil price', img_save=os.path.join('image', 'oil_price'))
+# plot_time_series(return_market, 'Market Return', img_save=os.path.join('image', 'market_return'))
+# plot_time_series(price_market, 'Dow Jone Index price', marker=None, img_save=os.path.join('image', 'dow_jone_index'))
+# plot_time_series(price_rdsb, 'RDS-B', marker=None, img_save=os.path.join('image', 'RDS-B'))
 get_beta(benchmark=price_market, stock=price_rdsb)
-
 
 for ticker, statement in statement_dic.items():
     image_dir = os.path.join('image', ticker)
@@ -101,16 +106,20 @@ for ticker, statement in statement_dic.items():
 
     # Show accounts in statement
     # print_stat_account(statement['income_statement'])
-    # print_stat_account(statement['financial_position'])
+    print_stat_account(statement['financial_position'])
     # print_stat_account(statement['cashflow_statement'])
 
 
     # B/S
+    capital_employed = cal_financial_data(statement['financial_position'], 'capital_employed')
+    long_term_assets = cal_financial_data(statement['financial_position'], 'long_term_assets')
+    ppe =cal_financial_data(statement['financial_position'], 'ppe')
     long_term_debt = cal_financial_data(statement['financial_position'], 'long_term_debt')
 
     # I/S
     revenue = cal_financial_data(statement['income_statement'], 'revenue')
     gross_profit = cal_financial_data(statement['income_statement'], 'gross_profit')
+    operating_income_before_depreciation = cal_financial_data(statement['income_statement'], 'operating_income_before_depreciation')
     depreciation = cal_financial_data(statement['income_statement'], 'depreciation')
     interest = cal_financial_data(statement['income_statement'], 'interest')
     pretax_income = cal_financial_data(statement['income_statement'], 'pretax_income')
@@ -125,7 +134,7 @@ for ticker, statement in statement_dic.items():
     working_capital_diff = working_capital.diff()
 
     # equation
-    return_on_capital = nopat / cal_financial_data(statement['financial_position'], 'capital_employed').shift(periods=1)
+    return_on_capital = nopat / capital_employed.shift(periods=1)
     reinvestment_rate = (capital_expenditure + working_capital_diff) / nopat
     ebit_growth = ebit.pct_change()
 
@@ -177,4 +186,10 @@ for ticker, statement in statement_dic.items():
     plot_time_series(depreciation, 'Depreciation', img_save=os.path.join(image_dir, 'depreciation'))
 
     plot_time_series([nopat, depreciation], 'Depreciation compares to Nopat', img_save=os.path.join(image_dir, 'nopat_2_depreciation'))
-    plot_time_series([(depreciation / nopat).clip(0, 10), get_ones(depreciation)], 'Ratio of depreciation to nopat', unit='%', img_save=os.path.join(image_dir, 'nopat_2_depreciation_ratio'))
+    plot_time_series([(depreciation / operating_income_before_depreciation), get_ones(depreciation), get_mean(depreciation / operating_income_before_depreciation)], 'Ratio of depreciation to income before depreciation', unit='%', img_save=os.path.join(image_dir, 'depreciation_2_income_before_depreciation'))
+    plot_time_series([(capital_expenditure / nopat).clip(0, 10), get_ones(depreciation)], 'Ratio of capital expenditure to nopat', unit='%', img_save=os.path.join(image_dir, 'nopat_2_capital_exp_ratio'))
+    plot_time_series(depreciation / operating_income_before_depreciation, 'Ratio of depreciation to operating income before depreciation', unit='%', img_save=os.path.join(image_dir, 'depreciation_to_income'))
+    plot_time_series([capital_expenditure, nopat], 'Compare capital expenditure and nopat', img_save=os.path.join(image_dir, 'cmp_capital_expenditure_nopat'))
+    plot_time_series([capital_expenditure, operating_cashflow], 'Compare capital expenditure and operating cashflow', img_save=os.path.join(image_dir, 'cmp_capital_expenditure_operating_cashflow'))
+    plot_time_series(depreciation / capital_employed, 'Ratio of depreciation to tatal assets', unit='%', img_save=os.path.join(image_dir, 'depreciation_2_total_assets'))
+    plot_time_series((long_term_debt / long_term_assets)['2015':], 'Ratio of long-term debt to long-term assets', unit='%', img_save=os.path.join(image_dir, 'long_debt_2_assets'))

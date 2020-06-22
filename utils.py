@@ -99,7 +99,7 @@ def plot_time_series(series, title, unit='unit', img_save=None, marker='o'):
 
     # plot time series data
     for s in series:
-        s.plot() if s.equals(get_ones(s)) else s.plot(marker=marker)
+        s.plot() if is_reference(s) else s.plot(marker=marker)
         
         if len(series) == 1:
             plt.figtext(0.95, 0.4, s.describe().to_string()) 
@@ -146,6 +146,23 @@ def get_ones(series):
     """
     return pd.Series(np.ones(len(series)), index=series.index)
 
+def get_mean(series):
+    """
+    Served as comparison to the whole data
+    """
+    # print(series.mean(), type(series.mean()))
+    mean = np.empty(series.shape)
+    mean.fill(series.mean())
+
+    return pd.Series(mean, index=series.index)
+
+def is_reference(series):
+    ref = series.iloc[0]
+    cnt = 0
+    for num in series:
+        if num == ref:
+            cnt += 1
+    return cnt == len(series)
 
 if __name__ == "__main__":
 
